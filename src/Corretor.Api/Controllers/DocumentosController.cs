@@ -7,7 +7,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Corretor.Api.Controllers;
 
 [ApiController]
-public sealed class DocumentosController(CorretorDbContext db, IWebHostEnvironment environment) : ControllerBase
+public sealed class DocumentosController(
+    CorretorDbContext db,
+    IWebHostEnvironment environment,
+    ExternalDocumentosClient externalDocumentosClient) : ControllerBase
 {
     [HttpGet("api/leads/{leadId:guid}/documentos")]
     public async Task<ActionResult<IEnumerable<DocumentoResponse>>> GetByLead(Guid leadId, CancellationToken cancellationToken)
@@ -59,6 +62,11 @@ public sealed class DocumentosController(CorretorDbContext db, IWebHostEnvironme
             return BadRequest();
         }
 
+        if (!UploadExternoValido(request))
+        {
+            return BadRequest();
+        }
+
         var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(request.Arquivo.FileName)}";
         var relativeDirectory = Path.Combine("Uploads", "Documentos");
         var directory = Path.Combine(environment.ContentRootPath, relativeDirectory);
@@ -70,6 +78,20 @@ public sealed class DocumentosController(CorretorDbContext db, IWebHostEnvironme
         await using (var stream = System.IO.File.Create(fullPath))
         {
             await request.Arquivo.CopyToAsync(stream, cancellationToken);
+        }
+
+        try
+        {
+            await externalDocumentosClient.EnviarDocumento(request, fullPath, cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            if (System.IO.File.Exists(fullPath))
+            {
+                System.IO.File.Delete(fullPath);
+            }
+
+            return StatusCode(StatusCodes.Status502BadGateway);
         }
 
         var documento = new Documento
@@ -191,6 +213,24 @@ public sealed class DocumentosController(CorretorDbContext db, IWebHostEnvironme
             _ => false
         };
     }
+
+    private static bool UploadExternoValido(DocumentoUploadRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Tipo) || string.IsNullOrWhiteSpace(request.Papel))
+        {
+            return false;
+        }
+
+        var documentoEndereco = request.Categoria == DocumentoCategoria.Endereco || request.Tipo.Equals("ComprovanteResidencia", StringComparison.OrdinalIgnoreCase);
+        var documentoDependente = request.DocumentoDe == DocumentoDe.Dependente || request.Papel.Equals("Dependente", StringComparison.OrdinalIgnoreCase);
+
+        if ((documentoEndereco || documentoDependente) && string.IsNullOrWhiteSpace(request.Cpf))
+        {
+            return false;
+        }
+
+        return !documentoDependente || !string.IsNullOrWhiteSpace(request.CpfDependente);
+    }
 }
 
 public sealed record DocumentoMetadataRequest(
@@ -206,6 +246,13 @@ public sealed class DocumentoUploadRequest
     public DocumentoIdentificacaoTipo? TipoIdentificacao { get; set; }
     public DocumentoEnderecoTipo? TipoEndereco { get; set; }
     public DocumentoDe DocumentoDe { get; set; }
+    [Required] public string Tipo { get; set; } = string.Empty;
+    [Required] public string Papel { get; set; } = string.Empty;
+    public string? Cpf { get; set; }
+    public string? CpfDependente { get; set; }
+    public string? Cnpj { get; set; }
+    public string? TipoParentesco { get; set; }
+    public string? Observacoes { get; set; }
     [Required] public IFormFile Arquivo { get; set; } = null!;
 }
 

@@ -111,6 +111,8 @@ public sealed class ApiTests : IClassFixture<CorretorApiFactory>
         content.Add(new StringContent("Identificacao"), "categoria");
         content.Add(new StringContent("Cnh"), "tipoIdentificacao");
         content.Add(new StringContent("Titular"), "documentoDe");
+        content.Add(new StringContent("CNH"), "tipo");
+        content.Add(new StringContent("Titular"), "papel");
         content.Add(new ByteArrayContent("arquivo teste"u8.ToArray()), "arquivo", "documento.txt");
 
         var response = await _client.PostAsync($"/api/leads/{lead.Id}/documentos", content);

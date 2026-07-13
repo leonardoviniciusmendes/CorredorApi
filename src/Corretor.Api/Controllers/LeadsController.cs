@@ -8,7 +8,7 @@ namespace Corretor.Api.Controllers;
 
 [ApiController]
 [Route("api/leads")]
-public sealed class LeadsController(CorretorDbContext db) : ControllerBase
+public sealed class LeadsController(CorretorDbContext db, IWebHostEnvironment environment) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<LeadResponse>>> Get(CancellationToken cancellationToken)
@@ -29,6 +29,74 @@ public sealed class LeadsController(CorretorDbContext db) : ControllerBase
             .FirstOrDefaultAsync(cancellationToken);
 
         return lead is null ? NotFound() : Ok(lead);
+    }
+
+    [HttpGet("{id:guid}/ficha-associativa/pdf")]
+    public async Task<IActionResult> GerarFichaAssociativa(Guid id, CancellationToken cancellationToken)
+    {
+        var lead = await db.Leads.AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => new FichaLeadDados(x.Nome, x.Telefone, x.QuantidadeVidas, x.Operadora, x.Email, x.DataEnvio, x.DataRetorno, x.DataAprovacao))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (lead is null)
+        {
+            return NotFound();
+        }
+
+        var cliente = await db.Clientes.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.LeadId == id, cancellationToken);
+
+        FichaPessoaFisicaDados? pessoaFisica = null;
+        FichaPessoaJuridicaDados? pessoaJuridica = null;
+        List<FichaEnderecoDados> enderecos = [];
+        List<FichaDependenteDados> dependentes = [];
+
+        if (cliente is not null)
+        {
+            if (cliente.PessoaFisicaId.HasValue)
+            {
+                pessoaFisica = await db.PessoasFisicas.AsNoTracking()
+                    .Where(x => x.Id == cliente.PessoaFisicaId.Value)
+                    .Select(x => new FichaPessoaFisicaDados(x.Id, x.Nome, x.Cpf, x.Email, x.Telefone, x.FaixaEtaria))
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                dependentes = await db.Dependentes.AsNoTracking()
+                    .Where(x => x.PessoaFisicaId == cliente.PessoaFisicaId.Value)
+                    .Select(x => new FichaDependenteDados(x.Id, x.PessoaFisicaId))
+                    .ToListAsync(cancellationToken);
+            }
+
+            if (cliente.PessoaJuridicaId.HasValue)
+            {
+                pessoaJuridica = await db.PessoasJuridicas.AsNoTracking()
+                    .Where(x => x.Id == cliente.PessoaJuridicaId.Value)
+                    .Select(x => new FichaPessoaJuridicaDados(x.Id, x.NomeEmpresa, x.Cnpj, x.IE, x.Email, x.Telefone, x.DataAbertura))
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            enderecos = await db.Enderecos.AsNoTracking()
+                .Where(x => x.ClienteId == cliente.Id)
+                .Select(x => new FichaEnderecoDados(x.Logradouro, x.Estado, x.Cidade, x.Cep))
+                .ToListAsync(cancellationToken);
+        }
+
+        var faixasEtarias = await db.FaixasEtarias.AsNoTracking()
+            .Where(x => x.LeadId == id)
+            .Select(x => new FichaFaixaEtariaDados(x.Faixa, x.Quantidade))
+            .ToListAsync(cancellationToken);
+
+        var dados = new FichaAssociativaDados(lead, pessoaFisica, pessoaJuridica, enderecos, faixasEtarias, dependentes);
+        var templatePath = Path.Combine(environment.ContentRootPath, "Templates", "FichaAssociativaAnaspl.pdf");
+        if (!System.IO.File.Exists(templatePath))
+        {
+            return Problem("Template da ficha associativa nao encontrado.");
+        }
+
+        var pdf = FichaAssociativaPdfGenerator.Gerar(dados, templatePath);
+        var fileName = $"ficha-associativa-{id}.pdf";
+
+        return File(pdf, "application/pdf", fileName);
     }
 
     [HttpPost]

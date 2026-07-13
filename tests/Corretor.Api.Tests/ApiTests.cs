@@ -162,6 +162,21 @@ public sealed class ApiTests : IClassFixture<CorretorApiFactory>
         Assert.Contains(scripts, x => x.Etapa == "FaixaEtaria");
     }
 
+    [Fact]
+    public async Task GetFichaAssociativa_ReturnsPdf()
+    {
+        var lead = await CreateLeadResponse();
+
+        var response = await _client.GetAsync($"/api/leads/{lead.Id}/ficha-associativa/pdf");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
+
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        Assert.True(bytes.Length > 4);
+        Assert.Equal("%PDF"u8.ToArray(), bytes[..4]);
+    }
+
     private Task<HttpResponseMessage> CreateLead()
     {
         return _client.PostAsJsonAsync("/api/leads", new

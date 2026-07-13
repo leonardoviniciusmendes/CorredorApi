@@ -8,12 +8,6 @@ builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.Configure<ExternalDocumentosOptions>(builder.Configuration.GetSection("ExternalDocumentos"));
-builder.Services.AddHttpClient<ExternalDocumentosClient>((serviceProvider, client) =>
-{
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ExternalDocumentosOptions>>().Value;
-    client.BaseAddress = new Uri(options.BaseUrl);
-});
 
 builder.Services.AddCors(options =>
 {

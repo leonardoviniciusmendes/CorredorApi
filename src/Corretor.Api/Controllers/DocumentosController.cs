@@ -9,8 +9,7 @@ namespace Corretor.Api.Controllers;
 [ApiController]
 public sealed class DocumentosController(
     CorretorDbContext db,
-    IWebHostEnvironment environment,
-    ExternalDocumentosClient externalDocumentosClient) : ControllerBase
+    IWebHostEnvironment environment) : ControllerBase
 {
     [HttpGet("api/leads/{leadId:guid}/documentos")]
     public async Task<ActionResult<IEnumerable<DocumentoResponse>>> GetByLead(Guid leadId, CancellationToken cancellationToken)
@@ -62,11 +61,6 @@ public sealed class DocumentosController(
             return BadRequest();
         }
 
-        if (!UploadExternoValido(request))
-        {
-            return BadRequest();
-        }
-
         var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(request.Arquivo.FileName)}";
         var relativeDirectory = Path.Combine("Uploads", "Documentos");
         var directory = Path.Combine(environment.ContentRootPath, relativeDirectory);
@@ -78,20 +72,6 @@ public sealed class DocumentosController(
         await using (var stream = System.IO.File.Create(fullPath))
         {
             await request.Arquivo.CopyToAsync(stream, cancellationToken);
-        }
-
-        try
-        {
-            await externalDocumentosClient.EnviarDocumento(request, fullPath, cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            if (System.IO.File.Exists(fullPath))
-            {
-                System.IO.File.Delete(fullPath);
-            }
-
-            return StatusCode(StatusCodes.Status502BadGateway);
         }
 
         var documento = new Documento
@@ -121,7 +101,7 @@ public sealed class DocumentosController(
         });
         await db.SaveChangesAsync(cancellationToken);
 
-        return Created($"/api/leads/{leadId}/documentos", new DocumentoResponse(documento.Id, documento.LeadId, documento.Categoria, documento.TipoIdentificacao, documento.TipoEndereco, documento.DocumentoDe, documento.DataUpload, documento.NomeArquivo, documento.NomeArquivoArmazenado, documento.ContentType, documento.TamanhoBytes, documento.CaminhoArquivo, documento.Aprovado, documento.DataAprovacao, documento.MotivoReprovacao));
+        return Created($"/api/leads/{leadId}/documentos", ToResponse(documento));
     }
 
     [HttpPost("api/documentos/{id:guid}/aprovar")]
@@ -157,7 +137,7 @@ public sealed class DocumentosController(
 
         await db.SaveChangesAsync(cancellationToken);
 
-        return Ok(new DocumentoResponse(documento.Id, documento.LeadId, documento.Categoria, documento.TipoIdentificacao, documento.TipoEndereco, documento.DocumentoDe, documento.DataUpload, documento.NomeArquivo, documento.NomeArquivoArmazenado, documento.ContentType, documento.TamanhoBytes, documento.CaminhoArquivo, documento.Aprovado, documento.DataAprovacao, documento.MotivoReprovacao));
+        return Ok(ToResponse(documento));
     }
 
     [HttpPut("api/documentos/{id:guid}")]
@@ -214,22 +194,24 @@ public sealed class DocumentosController(
         };
     }
 
-    private static bool UploadExternoValido(DocumentoUploadRequest request)
+    private static DocumentoResponse ToResponse(Documento documento)
     {
-        if (string.IsNullOrWhiteSpace(request.Tipo) || string.IsNullOrWhiteSpace(request.Papel))
-        {
-            return false;
-        }
-
-        var documentoEndereco = request.Categoria == DocumentoCategoria.Endereco || request.Tipo.Equals("ComprovanteResidencia", StringComparison.OrdinalIgnoreCase);
-        var documentoDependente = request.DocumentoDe == DocumentoDe.Dependente || request.Papel.Equals("Dependente", StringComparison.OrdinalIgnoreCase);
-
-        if ((documentoEndereco || documentoDependente) && string.IsNullOrWhiteSpace(request.Cpf))
-        {
-            return false;
-        }
-
-        return !documentoDependente || !string.IsNullOrWhiteSpace(request.CpfDependente);
+        return new DocumentoResponse(
+            documento.Id,
+            documento.LeadId,
+            documento.Categoria,
+            documento.TipoIdentificacao,
+            documento.TipoEndereco,
+            documento.DocumentoDe,
+            documento.DataUpload,
+            documento.NomeArquivo,
+            documento.NomeArquivoArmazenado,
+            documento.ContentType,
+            documento.TamanhoBytes,
+            documento.CaminhoArquivo,
+            documento.Aprovado,
+            documento.DataAprovacao,
+            documento.MotivoReprovacao);
     }
 }
 
@@ -246,13 +228,6 @@ public sealed class DocumentoUploadRequest
     public DocumentoIdentificacaoTipo? TipoIdentificacao { get; set; }
     public DocumentoEnderecoTipo? TipoEndereco { get; set; }
     public DocumentoDe DocumentoDe { get; set; }
-    [Required] public string Tipo { get; set; } = string.Empty;
-    [Required] public string Papel { get; set; } = string.Empty;
-    public string? Cpf { get; set; }
-    public string? CpfDependente { get; set; }
-    public string? Cnpj { get; set; }
-    public string? TipoParentesco { get; set; }
-    public string? Observacoes { get; set; }
     [Required] public IFormFile Arquivo { get; set; } = null!;
 }
 

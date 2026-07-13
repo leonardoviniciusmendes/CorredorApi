@@ -46,21 +46,52 @@ Se o `dotnet run` informar outra porta no console, use essa porta com `/swagger`
 
 ## Documentos e processamento externo
 
-A Corretor.Api nao chama API externa de documentos. O front deve chamar a API externa diretamente quando precisar processar identificacao, endereco ou reprocessamento.
+A API de documentos (`http://localhost:5001`) fica responsavel por arquivo, extracao e armazenamento do documento bruto. A Corretor.Api guarda somente o vinculo com o lead e os metadados de negocio.
 
-Para salvar o documento no cadastro interno da Corretor.Api, use `multipart/form-data` em:
+Fluxo:
+
+1. O front envia o arquivo para `POST http://localhost:5001/api/Documentos`.
+2. A API 5001 retorna o `id` do documento externo.
+3. O front envia esse `id` para a Corretor.Api em `POST /api/leads/{leadId}/documentos`.
+4. A Corretor.Api usa `DocumentoExternoId` para consultar ou reprocessar na API 5001.
+
+Para salvar o vinculo no cadastro interno da Corretor.Api, use JSON:
 
 ```text
 POST /api/leads/{leadId}/documentos
+Content-Type: application/json
 ```
 
-Campos da Corretor.Api:
+Payload:
 
-- `arquivo`
-- `categoria`
-- `tipoIdentificacao`
-- `tipoEndereco`
-- `documentoDe`
+```json
+{
+  "documentoExternoId": "3589c6de-c0d4-4fba-ba0c-f6684fedd13f",
+  "tipo": "CNH",
+  "papel": "Titular",
+  "tipoParentesco": "Titular",
+  "cpf": "12345678901",
+  "cpfDependente": null,
+  "cnpj": null,
+  "extracaoProcessada": true
+}
+```
+
+Campos persistidos pela Corretor.Api:
+
+- `leadId`
+- `documentoExternoId`
+- `tipo`
+- `papel`
+- `tipoParentesco`
+- `cpf`
+- `cpfDependente`
+- `cnpj`
+- `extracaoProcessada`
+- `aprovado`
+- `dataUpload`
+- `dataAprovacao`
+- `motivoReprovacao`
 
 Para processar o arquivo, o front deve chamar diretamente a API externa:
 
@@ -110,16 +141,16 @@ arquivo=@comprovante.pdf
 
 Depois do upload externo, o front deve capturar o `id` retornado pela API externa.
 
-Para reprocessar:
+Para reprocessar pela Corretor.Api, usando o documento local salvo:
 
 ```text
-POST http://localhost:5001/api/Documentos/{id}/extrair-identificacao
+POST /api/documentos/{id}/extrair-identificacao
 ```
 
-Para recuperar dados processados de identificacao e endereco:
+Para recuperar dados processados de identificacao e endereco pela Corretor.Api:
 
 ```text
-GET http://localhost:5001/api/Documentos/{id}/identificacao
+GET /api/documentos/{id}/identificacao
 ```
 
-Se ainda nao houver extracao salva na API externa, ela deve retornar `404`.
+Nessas duas rotas, `{id}` e o identificador local da tabela `Documento`; a Corretor.Api usa o `documentoExternoId` salvo para chamar a API 5001.

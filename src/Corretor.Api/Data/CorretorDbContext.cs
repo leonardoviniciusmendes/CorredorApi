@@ -52,15 +52,9 @@ public sealed class CorretorDbContext(DbContextOptions<CorretorDbContext> option
         {
             entity.ToTable("Documento");
             entity.HasKey(x => x.Id);
-            entity.Property(x => x.Categoria).HasConversion<string>().IsRequired();
-            entity.Property(x => x.TipoIdentificacao).HasConversion<string>();
-            entity.Property(x => x.TipoEndereco).HasConversion<string>();
-            entity.Property(x => x.DocumentoDe).HasConversion<string>().IsRequired();
+            entity.Property(x => x.Tipo).IsRequired();
+            entity.Property(x => x.Papel).IsRequired();
             entity.Property(x => x.DataUpload).IsRequired();
-            entity.Property(x => x.NomeArquivo).IsRequired();
-            entity.Property(x => x.NomeArquivoArmazenado).IsRequired();
-            entity.Property(x => x.ContentType).IsRequired();
-            entity.Property(x => x.CaminhoArquivo).IsRequired();
             entity.HasIndex(x => x.LeadId);
             entity.HasOne<Lead>().WithMany().HasForeignKey(x => x.LeadId).OnDelete(DeleteBehavior.Restrict);
         });

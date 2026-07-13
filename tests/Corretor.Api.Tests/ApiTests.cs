@@ -106,21 +106,28 @@ public sealed class ApiTests : IClassFixture<CorretorApiFactory>
     public async Task PostDocumentoIdentificacao_CreatesDocumento()
     {
         var lead = await CreateLeadResponse();
+        var documentoExternoId = Guid.NewGuid();
 
-        using var content = new MultipartFormDataContent();
-        content.Add(new StringContent("Identificacao"), "categoria");
-        content.Add(new StringContent("Cnh"), "tipoIdentificacao");
-        content.Add(new StringContent("Titular"), "documentoDe");
-        content.Add(new ByteArrayContent("arquivo teste"u8.ToArray()), "arquivo", "documento.txt");
-
-        var response = await _client.PostAsync($"/api/leads/{lead.Id}/documentos", content);
+        var response = await _client.PostAsJsonAsync($"/api/leads/{lead.Id}/documentos", new
+        {
+            documentoExternoId,
+            tipo = "CNH",
+            papel = "Titular",
+            tipoParentesco = "Titular",
+            cpf = "12345678901",
+            cpfDependente = (string?)null,
+            cnpj = (string?)null,
+            extracaoProcessada = true
+        });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         var documento = await response.Content.ReadFromJsonAsync<DocumentoTestResponse>();
         Assert.NotNull(documento);
-        Assert.Equal("documento.txt", documento.NomeArquivo);
-        Assert.True(documento.TamanhoBytes > 0);
+        Assert.Equal(documentoExternoId, documento.DocumentoExternoId);
+        Assert.Equal("CNH", documento.Tipo);
+        Assert.Equal("Titular", documento.Papel);
+        Assert.True(documento.ExtracaoProcessada);
         Assert.False(documento.Aprovado);
 
         var aprovacaoResponse = await _client.PostAsync($"/api/documentos/{documento.Id}/aprovar", null);
@@ -210,8 +217,8 @@ public sealed class ApiTests : IClassFixture<CorretorApiFactory>
     private sealed record LeadTestResponse(Guid Id, string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao, string WorkflowEtapa);
     private sealed record PessoaFisicaTestResponse(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria);
     private sealed record SimulacaoTestResponse(Guid Id, Guid LeadId, string? Link, bool Aprovada, string DataEnvio);
-    private sealed record DocumentoTestResponse(Guid Id, Guid LeadId, string Categoria, string? TipoIdentificacao, string? TipoEndereco, string DocumentoDe, string DataUpload, string NomeArquivo, string NomeArquivoArmazenado, string ContentType, long TamanhoBytes, string CaminhoArquivo, bool Aprovado, string? DataAprovacao, string? MotivoReprovacao);
-    private sealed record DocumentoAprovacaoTestResponse(Guid Id, bool Aprovado, string? DataAprovacao);
+    private sealed record DocumentoTestResponse(Guid Id, Guid LeadId, Guid DocumentoExternoId, string Tipo, string Papel, string? TipoParentesco, string? Cpf, string? CpfDependente, string? Cnpj, bool ExtracaoProcessada, bool Aprovado, string DataUpload, string? DataAprovacao, string? MotivoReprovacao);
+    private sealed record DocumentoAprovacaoTestResponse(Guid Id, Guid DocumentoExternoId, bool Aprovado, string? DataAprovacao);
     private sealed record HistoricoTestResponse(Guid Id, Guid LeadId, string Tipo, string Data);
     private sealed record ScriptTestResponse(Guid Id, string Etapa, string Tipo, string Mensagem);
 }

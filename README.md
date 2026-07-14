@@ -166,3 +166,9 @@ GET /api/documentos/{id}/identificacao
 ```
 
 Nessas duas rotas, `{id}` e o identificador local da tabela `Documento`; a Corretor.Api usa o `documentoExternoId` salvo para chamar a API 5001.
+
+Quando o front receber dados de identificacao extraidos, pode gravar em pessoa fisica ou dependente:
+
+- `dataNascimento`
+- `nomeMae`
+- `nomePai`

@@ -208,7 +208,10 @@ public sealed class ApiTests : IClassFixture<CorretorApiFactory>
             cpf = "12345678900",
             email = "maria@example.com",
             telefone = "11999999999",
-            faixaEtaria = "34-38"
+            faixaEtaria = "34-38",
+            dataNascimento = "1990-01-01",
+            nomeMae = "Denise de Moraes Rosa Mendes",
+            nomePai = "Manoel Messias Mendes"
         });
 
         response.EnsureSuccessStatusCode();
@@ -230,7 +233,7 @@ public sealed class ApiTests : IClassFixture<CorretorApiFactory>
     }
 
     private sealed record LeadTestResponse(Guid Id, string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao, string WorkflowEtapa);
-    private sealed record PessoaFisicaTestResponse(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria);
+    private sealed record PessoaFisicaTestResponse(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);
     private sealed record SimulacaoTestResponse(Guid Id, Guid LeadId, string? Link, bool Aprovada, string DataEnvio);
     private sealed record DocumentoTestResponse(Guid Id, Guid LeadId, Guid DocumentoExternoId, string Tipo, string Papel, string? TipoParentesco, string? Cpf, string? CpfDependente, string? Cnpj, bool ExtracaoProcessada, bool Aprovado, string DataUpload, string? DataAprovacao, string? MotivoReprovacao);
     private sealed record DocumentoAprovacaoTestResponse(Guid Id, Guid DocumentoExternoId, bool Aprovado, string? DataAprovacao);

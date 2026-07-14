@@ -58,12 +58,12 @@ public sealed class LeadsController(CorretorDbContext db, IWebHostEnvironment en
             {
                 pessoaFisica = await db.PessoasFisicas.AsNoTracking()
                     .Where(x => x.Id == cliente.PessoaFisicaId.Value)
-                    .Select(x => new FichaPessoaFisicaDados(x.Id, x.Nome, x.Cpf, x.Email, x.Telefone, x.FaixaEtaria))
+                    .Select(x => new FichaPessoaFisicaDados(x.Id, x.Nome, x.Cpf, x.Email, x.Telefone, x.FaixaEtaria, x.DataNascimento, x.NomeMae, x.NomePai))
                     .FirstOrDefaultAsync(cancellationToken);
 
                 dependentes = await db.Dependentes.AsNoTracking()
                     .Where(x => x.PessoaFisicaId == cliente.PessoaFisicaId.Value)
-                    .Select(x => new FichaDependenteDados(x.Id, x.PessoaFisicaId))
+                    .Select(x => new FichaDependenteDados(x.Id, x.PessoaFisicaId, x.DataNascimento, x.NomeMae, x.NomePai))
                     .ToListAsync(cancellationToken);
             }
 

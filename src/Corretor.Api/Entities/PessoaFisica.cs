@@ -8,4 +8,7 @@ public sealed class PessoaFisica
     public string? Email { get; set; }
     public string? Telefone { get; set; }
     public string? FaixaEtaria { get; set; }
+    public string? DataNascimento { get; set; }
+    public string? NomeMae { get; set; }
+    public string? NomePai { get; set; }
 }

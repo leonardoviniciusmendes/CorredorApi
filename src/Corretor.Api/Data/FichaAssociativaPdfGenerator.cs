@@ -15,86 +15,75 @@ public static class FichaAssociativaPdfGenerator
         var page = document.Pages[0];
 
         using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
-        var titleFont = new XFont("Arial", 10, XFontStyleEx.Bold);
-        var labelFont = new XFont("Arial", 7.5, XFontStyleEx.Bold);
-        var valueFont = new XFont("Arial", 8, XFontStyleEx.Regular);
+        var font = new XFont("Arial", 8, XFontStyleEx.Regular);
         var brush = XBrushes.Black;
 
-        var y = 76d;
-        DrawSectionTitle(gfx, titleFont, brush, "DADOS PREENCHIDOS PELO SISTEMA", 42, y);
-        y += 20;
-
-        DrawField(gfx, labelFont, valueFont, brush, "Nome", dados.PessoaFisica?.Nome ?? dados.Lead.Nome, 42, y, 260);
-        DrawField(gfx, labelFont, valueFont, brush, "CPF", dados.PessoaFisica?.Cpf, 330, y, 150);
-        y += 18;
-
-        DrawField(gfx, labelFont, valueFont, brush, "Telefone", dados.PessoaFisica?.Telefone ?? dados.Lead.Telefone, 42, y, 150);
-        DrawField(gfx, labelFont, valueFont, brush, "Email", dados.PessoaFisica?.Email ?? dados.Lead.Email, 220, y, 260);
-        y += 18;
-
-        DrawField(gfx, labelFont, valueFont, brush, "Operadora", dados.Lead.Operadora, 42, y, 150);
-        DrawField(gfx, labelFont, valueFont, brush, "Quantidade de vidas", dados.Lead.QuantidadeVidas.ToString(), 220, y, 90);
-        DrawField(gfx, labelFont, valueFont, brush, "Faixa etaria", dados.PessoaFisica?.FaixaEtaria, 340, y, 140);
-        y += 18;
+        DrawValue(gfx, font, brush, "X", 121, 147, 12);
+        DrawValue(gfx, font, brush, dados.PessoaFisica?.Nome ?? dados.Lead.Nome, 125, 191, 320);
 
         if (dados.Enderecos.Count > 0)
         {
             var endereco = dados.Enderecos[0];
-            DrawField(gfx, labelFont, valueFont, brush, "Endereco", endereco.Logradouro, 42, y, 260);
-            DrawField(gfx, labelFont, valueFont, brush, "Cidade/UF", $"{endereco.Cidade} - {endereco.Estado}", 330, y, 150);
-            y += 18;
-            DrawField(gfx, labelFont, valueFont, brush, "CEP", endereco.Cep, 42, y, 120);
-            y += 18;
+            DrawValue(gfx, font, brush, endereco.Logradouro, 88, 213, 360);
+            DrawValue(gfx, font, brush, $"{endereco.Cidade} - {endereco.Estado}", 67, 235, 120);
+            DrawValue(gfx, font, brush, FormatCep(endereco.Cep), 212, 235, 110);
         }
 
-        if (dados.PessoaJuridica is not null)
-        {
-            DrawSectionTitle(gfx, titleFont, brush, "DADOS DA EMPRESA", 42, y);
-            y += 18;
-            DrawField(gfx, labelFont, valueFont, brush, "Empresa", dados.PessoaJuridica.NomeEmpresa, 42, y, 260);
-            DrawField(gfx, labelFont, valueFont, brush, "CNPJ", dados.PessoaJuridica.Cnpj, 330, y, 150);
-            y += 18;
-            DrawField(gfx, labelFont, valueFont, brush, "IE", dados.PessoaJuridica.IE, 42, y, 120);
-            DrawField(gfx, labelFont, valueFont, brush, "Telefone", dados.PessoaJuridica.Telefone, 220, y, 120);
-            DrawField(gfx, labelFont, valueFont, brush, "Email", dados.PessoaJuridica.Email, 340, y, 150);
-            y += 20;
-        }
-
-        if (dados.FaixasEtarias.Count > 0)
-        {
-            DrawSectionTitle(gfx, titleFont, brush, "VIDAS POR FAIXA ETARIA", 42, y);
-            y += 18;
-
-            foreach (var faixa in dados.FaixasEtarias.Take(8))
-            {
-                DrawField(gfx, labelFont, valueFont, brush, faixa.Faixa, faixa.Quantidade.ToString(), 42, y, 160);
-                y += 14;
-            }
-        }
-
-        DrawField(gfx, labelFont, valueFont, brush, "Data de envio", dados.Lead.DataEnvio, 42, 720, 120);
-        DrawField(gfx, labelFont, valueFont, brush, "Data de retorno", dados.Lead.DataRetorno, 190, 720, 120);
-        DrawField(gfx, labelFont, valueFont, brush, "Data de aprovacao", dados.Lead.DataAprovacao, 340, 720, 140);
+        DrawValue(gfx, font, brush, FormatPhone(dados.PessoaFisica?.Telefone ?? dados.Lead.Telefone), 347, 235, 120);
+        DrawValue(gfx, font, brush, FormatDate(dados.PessoaFisica?.DataNascimento), 130, 270, 80);
+        DrawValue(gfx, font, brush, FormatCpf(dados.PessoaFisica?.Cpf), 267, 270, 180);
+        DrawValue(gfx, font, brush, FormatDate(dados.Lead.DataEnvio), 64, 686, 130);
 
         using var stream = new MemoryStream();
         document.Save(stream, false);
         return stream.ToArray();
     }
 
-    private static void DrawSectionTitle(XGraphics gfx, XFont font, XBrush brush, string text, double x, double y)
+    private static void DrawValue(XGraphics gfx, XFont font, XBrush brush, string? value, double x, double y, double width)
     {
-        gfx.DrawString(text, font, brush, new XRect(x, y, 500, 12), XStringFormats.TopLeft);
+        gfx.DrawString(Value(value, width), font, brush, new XRect(x, y, width, 11), XStringFormats.TopLeft);
     }
 
-    private static void DrawField(XGraphics gfx, XFont labelFont, XFont valueFont, XBrush brush, string label, string? value, double x, double y, double width)
+    private static string Value(string? value, double width)
     {
-        gfx.DrawString($"{label}:", labelFont, brush, new XRect(x, y, width, 10), XStringFormats.TopLeft);
-        gfx.DrawString(Value(value), valueFont, brush, new XRect(x, y + 9, width, 10), XStringFormats.TopLeft);
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var max = Math.Max(8, (int)(width / 4.1));
+        var normalized = value.ReplaceLineEndings(" ").Trim();
+        return normalized.Length <= max ? normalized : normalized[..Math.Max(0, max - 3)] + "...";
     }
 
-    private static string Value(string? value)
+    private static string FormatCpf(string? value)
     {
-        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+        var digits = Digits(value);
+        return digits.Length == 11
+            ? $"{digits[..3]}.{digits.Substring(3, 3)}.{digits.Substring(6, 3)}-{digits[9..]}"
+            : Value(value, 80);
+    }
+
+    private static string FormatCep(string? value)
+    {
+        var digits = Digits(value);
+        return digits.Length == 8 ? $"{digits[..5]}-{digits[5..]}" : Value(value, 70);
+    }
+
+    private static string FormatPhone(string? value)
+    {
+        var digits = Digits(value);
+        return digits.Length == 11
+            ? $"({digits[..2]}) {digits.Substring(2, 5)}-{digits[7..]}"
+            : digits.Length == 10
+                ? $"({digits[..2]}) {digits.Substring(2, 4)}-{digits[6..]}"
+                : Value(value, 100);
+    }
+
+    private static string FormatDate(string? value)
+    {
+        return DateTime.TryParse(value, out var date) ? date.ToString("dd/MM/yyyy") : Value(value, 90);
+    }
+
+    private static string Digits(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? string.Empty : new string(value.Where(char.IsDigit).ToArray());
     }
 }
 
@@ -107,8 +96,8 @@ public sealed record FichaAssociativaDados(
     List<FichaDependenteDados> Dependentes);
 
 public sealed record FichaLeadDados(string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao);
-public sealed record FichaPessoaFisicaDados(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria);
+public sealed record FichaPessoaFisicaDados(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);
 public sealed record FichaPessoaJuridicaDados(Guid Id, string NomeEmpresa, string Cnpj, string IE, string? Email, string? Telefone, DateTime DataAbertura);
 public sealed record FichaEnderecoDados(string Logradouro, string Estado, string Cidade, string Cep);
 public sealed record FichaFaixaEtariaDados(string Faixa, int Quantidade);
-public sealed record FichaDependenteDados(Guid Id, Guid PessoaFisicaId);
+public sealed record FichaDependenteDados(Guid Id, Guid PessoaFisicaId, string? DataNascimento, string? NomeMae, string? NomePai);

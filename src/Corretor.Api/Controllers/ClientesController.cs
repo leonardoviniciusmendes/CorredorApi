@@ -104,7 +104,7 @@ public sealed class ClientesController(CorretorDbContext db) : ControllerBase
 
         var pessoasFisicas = await db.PessoasFisicas.AsNoTracking()
             .Where(x => pessoaFisicaIds.Contains(x.Id))
-            .Select(x => new ClientePessoaFisicaResponse(x.Id, x.Nome, x.Cpf, x.Email, x.Telefone, x.FaixaEtaria, new List<ClienteDependenteResponse>()))
+            .Select(x => new ClientePessoaFisicaResponse(x.Id, x.Nome, x.Cpf, x.Email, x.Telefone, x.FaixaEtaria, x.DataNascimento, x.NomeMae, x.NomePai, new List<ClienteDependenteResponse>()))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
 
         var pessoasJuridicas = await db.PessoasJuridicas.AsNoTracking()
@@ -114,7 +114,7 @@ public sealed class ClientesController(CorretorDbContext db) : ControllerBase
 
         var dependentes = await db.Dependentes.AsNoTracking()
             .Where(x => pessoaFisicaIds.Contains(x.PessoaFisicaId))
-            .Select(x => new ClienteDependenteResponse(x.Id, x.PessoaFisicaId))
+            .Select(x => new ClienteDependenteResponse(x.Id, x.PessoaFisicaId, x.DataNascimento, x.NomeMae, x.NomePai))
             .ToListAsync(cancellationToken);
 
         var dependentesPorPessoaFisica = dependentes
@@ -170,7 +170,7 @@ public sealed record ClienteDetalhadoResponse(
     List<ClienteEnderecoResponse> Enderecos);
 
 public sealed record ClienteLeadResponse(Guid Id, string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao, string WorkflowEtapa);
-public sealed record ClientePessoaFisicaResponse(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria, List<ClienteDependenteResponse> Dependentes);
+public sealed record ClientePessoaFisicaResponse(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai, List<ClienteDependenteResponse> Dependentes);
 public sealed record ClientePessoaJuridicaResponse(Guid Id, string NomeEmpresa, string Cnpj, string IE, string? Email, string? Telefone, DateTime DataAbertura);
 public sealed record ClienteEnderecoResponse(Guid Id, Guid ClienteId, string Logradouro, string Estado, string Cidade, string Cep);
-public sealed record ClienteDependenteResponse(Guid Id, Guid PessoaFisicaId);
+public sealed record ClienteDependenteResponse(Guid Id, Guid PessoaFisicaId, string? DataNascimento, string? NomeMae, string? NomePai);

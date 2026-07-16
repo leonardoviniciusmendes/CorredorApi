@@ -46,6 +46,16 @@ public sealed class DocumentosController(
             return NotFound();
         }
 
+        if (!DocumentoRequestValido(request.Papel, request.Cpf, request.CpfDependente, request.Cnpj, request.TipoParentesco))
+        {
+            return BadRequest();
+        }
+
+        if (!await AplicarDadosPessoaDocumento(leadId, request, cancellationToken))
+        {
+            return BadRequest();
+        }
+
         var documento = new Documento
         {
             Id = Guid.NewGuid(),
@@ -162,6 +172,16 @@ public sealed class DocumentosController(
             return NotFound();
         }
 
+        if (!DocumentoRequestValido(request.Papel, request.Cpf, request.CpfDependente, request.Cnpj, request.TipoParentesco))
+        {
+            return BadRequest();
+        }
+
+        if (!await AplicarDadosPessoaDocumento(documento.LeadId, request, cancellationToken))
+        {
+            return BadRequest();
+        }
+
         documento.DocumentoExternoId = request.DocumentoExternoId;
         documento.Tipo = request.Tipo;
         documento.Papel = request.Papel;
@@ -219,6 +239,148 @@ public sealed class DocumentosController(
             ContentType = response.Content.Headers.ContentType?.ToString() ?? "application/json"
         };
     }
+
+    private static bool DocumentoRequestValido(string papel, string? cpf, string? cpfDependente, string? cnpj, string? tipoParentesco)
+    {
+        if (string.IsNullOrWhiteSpace(papel))
+        {
+            return false;
+        }
+
+        if (papel.Equals("Dependente", StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(cpf) &&
+                   !string.IsNullOrWhiteSpace(tipoParentesco);
+        }
+
+        if (papel.Equals("Empresa", StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(cnpj);
+        }
+
+        return true;
+    }
+
+    private async Task<bool> AplicarDadosPessoaDocumento(Guid leadId, DocumentoPessoaRequest request, CancellationToken cancellationToken)
+    {
+        var cliente = await db.Clientes.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.LeadId == leadId, cancellationToken);
+
+        if (request.Papel.Equals("Titular", StringComparison.OrdinalIgnoreCase))
+        {
+            if (cliente?.PessoaFisicaId is null)
+            {
+                return true;
+            }
+
+            var titular = await db.PessoasFisicas.FirstOrDefaultAsync(x => x.Id == cliente.PessoaFisicaId.Value, cancellationToken);
+            if (titular is null)
+            {
+                return true;
+            }
+
+            titular.Nome = request.Nome ?? titular.Nome;
+            titular.Cpf = string.IsNullOrWhiteSpace(request.Cpf) ? titular.Cpf : ApenasDigitos(request.Cpf);
+            titular.DataNascimento = request.DataNascimento ?? titular.DataNascimento;
+            titular.NomeMae = request.NomeMae ?? titular.NomeMae;
+            titular.NomePai = request.NomePai ?? titular.NomePai;
+            return true;
+        }
+
+        if (!request.Papel.Equals("Dependente", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (cliente?.PessoaFisicaId is null)
+        {
+            return false;
+        }
+
+        var cpfDependente = string.IsNullOrWhiteSpace(request.CpfDependente) ? null : ApenasDigitos(request.CpfDependente);
+        Dependente? dependente = null;
+
+        if (!string.IsNullOrWhiteSpace(cpfDependente))
+        {
+            dependente = await db.Dependentes
+                .FirstOrDefaultAsync(x => x.PessoaFisicaId == cliente.PessoaFisicaId.Value && x.Cpf == cpfDependente, cancellationToken);
+        }
+
+        PessoaFisica? pessoaDependente = null;
+        if (dependente?.PessoaFisicaDependenteId is not null)
+        {
+            pessoaDependente = await db.PessoasFisicas
+                .FirstOrDefaultAsync(x => x.Id == dependente.PessoaFisicaDependenteId.Value, cancellationToken);
+        }
+
+        if (pessoaDependente is null && !string.IsNullOrWhiteSpace(cpfDependente))
+        {
+            pessoaDependente = await db.PessoasFisicas
+                .FirstOrDefaultAsync(x => x.Cpf == cpfDependente, cancellationToken);
+        }
+
+        if (pessoaDependente is null)
+        {
+            pessoaDependente = new PessoaFisica
+            {
+                Id = Guid.NewGuid(),
+                Nome = string.IsNullOrWhiteSpace(request.Nome) ? "Dependente" : request.Nome,
+                Cpf = cpfDependente,
+                DataNascimento = request.DataNascimento,
+                NomeMae = request.NomeMae,
+                NomePai = request.NomePai
+            };
+            db.PessoasFisicas.Add(pessoaDependente);
+        }
+        else
+        {
+            pessoaDependente.Nome = request.Nome ?? pessoaDependente.Nome;
+            pessoaDependente.Cpf = cpfDependente ?? pessoaDependente.Cpf;
+            pessoaDependente.DataNascimento = request.DataNascimento ?? pessoaDependente.DataNascimento;
+            pessoaDependente.NomeMae = request.NomeMae ?? pessoaDependente.NomeMae;
+            pessoaDependente.NomePai = request.NomePai ?? pessoaDependente.NomePai;
+        }
+
+        if (dependente is null)
+        {
+            dependente = new Dependente
+            {
+                Id = Guid.NewGuid(),
+                PessoaFisicaId = cliente.PessoaFisicaId.Value,
+                PessoaFisicaDependenteId = pessoaDependente.Id,
+                Cpf = cpfDependente
+            };
+            db.Dependentes.Add(dependente);
+        }
+        else
+        {
+            dependente.PessoaFisicaDependenteId = pessoaDependente.Id;
+        }
+
+        dependente.TipoParentesco = request.TipoParentesco ?? dependente.TipoParentesco;
+        dependente.DataNascimento = request.DataNascimento ?? dependente.DataNascimento;
+        dependente.NomeMae = request.NomeMae ?? dependente.NomeMae;
+        dependente.NomePai = request.NomePai ?? dependente.NomePai;
+
+        return true;
+    }
+
+    private static string ApenasDigitos(string value)
+    {
+        return new string(value.Where(char.IsDigit).ToArray());
+    }
+}
+
+public interface DocumentoPessoaRequest
+{
+    string? Nome { get; }
+    string Papel { get; }
+    string? TipoParentesco { get; }
+    string? Cpf { get; }
+    string? CpfDependente { get; }
+    string? DataNascimento { get; }
+    string? NomeMae { get; }
+    string? NomePai { get; }
 }
 
 public sealed record DocumentoCreateRequest(
@@ -229,7 +391,11 @@ public sealed record DocumentoCreateRequest(
     string? Cpf,
     string? CpfDependente,
     string? Cnpj,
-    bool ExtracaoProcessada);
+    bool ExtracaoProcessada,
+    string? Nome,
+    string? DataNascimento,
+    string? NomeMae,
+    string? NomePai) : DocumentoPessoaRequest;
 
 public sealed record DocumentoUpdateRequest(
     [Required] Guid DocumentoExternoId,
@@ -240,7 +406,11 @@ public sealed record DocumentoUpdateRequest(
     string? CpfDependente,
     string? Cnpj,
     bool ExtracaoProcessada,
-    [Required] string DataUpload);
+    [Required] string DataUpload,
+    string? Nome,
+    string? DataNascimento,
+    string? NomeMae,
+    string? NomePai) : DocumentoPessoaRequest;
 
 public sealed record DocumentoResponse(
     Guid Id,

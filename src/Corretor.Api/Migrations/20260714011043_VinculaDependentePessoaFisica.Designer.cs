@@ -4,6 +4,7 @@ using Corretor.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Corretor.Api.Migrations
 {
     [DbContext(typeof(CorretorDbContext))]
-    partial class CorretorDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714011043_VinculaDependentePessoaFisica")]
+    partial class VinculaDependentePessoaFisica
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -249,9 +252,6 @@ namespace Corretor.Api.Migrations
                     b.Property<string>("DataEnvio")
                         .HasColumnType("longtext");
 
-                    b.Property<string>("DataHoraEnvioAnalise")
-                        .HasColumnType("longtext");
-
                     b.Property<string>("DataRetorno")
                         .HasColumnType("longtext");
 
@@ -268,14 +268,8 @@ namespace Corretor.Api.Migrations
                     b.Property<int>("QuantidadeVidas")
                         .HasColumnType("int");
 
-                    b.Property<string>("RetornoAnalise")
-                        .HasColumnType("longtext");
-
                     b.Property<string>("Telefone")
                         .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("TokenConsultaAnalise")
                         .HasColumnType("longtext");
 
                     b.Property<string>("WorkflowEtapa")
@@ -418,21 +412,21 @@ namespace Corretor.Api.Migrations
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111114"),
-                            Etapa = "EnvioAnalise",
-                            Mensagem = "Segue a analise com as opcoes de plano. Veja valores, rede, coparticipacao e cobertura antes de escolher a melhor alternativa.",
+                            Etapa = "EnvioSimulacao",
+                            Mensagem = "Segue a simulacao com as opcoes de plano. Veja valores, rede, coparticipacao e cobertura antes de escolher a melhor alternativa.",
                             Tipo = "Envio"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111115"),
                             Etapa = "RetornoContato",
-                            Mensagem = "Conseguiu avaliar a analise enviada? Posso te ajudar a comparar as opcoes e tirar duvidas sobre rede, carencia e valores.",
+                            Mensagem = "Conseguiu avaliar a simulacao enviada? Posso te ajudar a comparar as opcoes e tirar duvidas sobre rede, carencia e valores.",
                             Tipo = "FollowUp"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111116"),
-                            Etapa = "AprovacaoAnalise",
+                            Etapa = "AprovacaoSimulacao",
                             Mensagem = "Perfeito, vamos seguir com a opcao escolhida. Vou iniciar a etapa de documentos para formalizar a proposta.",
                             Tipo = "Aprovacao"
                         },
@@ -457,6 +451,32 @@ namespace Corretor.Api.Migrations
                             Mensagem = "Contrato concluido. Vou acompanhar os proximos passos e te orientar sobre carteirinha, acesso ao aplicativo e uso do plano.",
                             Tipo = "BoasVindas"
                         });
+                });
+
+            modelBuilder.Entity("Corretor.Api.Entities.Simulacao", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<bool>("Aprovada")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("DataEnvio")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("LeadId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Link")
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeadId");
+
+                    b.ToTable("Simulacao", (string)null);
                 });
 
             modelBuilder.Entity("Corretor.Api.Entities.Cliente", b =>
@@ -542,6 +562,15 @@ namespace Corretor.Api.Migrations
                     b.HasOne("Corretor.Api.Entities.Contrato", null)
                         .WithMany()
                         .HasForeignKey("ContratoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Corretor.Api.Entities.Simulacao", b =>
+                {
+                    b.HasOne("Corretor.Api.Entities.Lead", null)
+                        .WithMany()
+                        .HasForeignKey("LeadId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

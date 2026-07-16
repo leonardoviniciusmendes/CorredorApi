@@ -99,7 +99,20 @@ public sealed class ClientesController(CorretorDbContext db) : ControllerBase
 
         var leads = await db.Leads.AsNoTracking()
             .Where(x => leadIds.Contains(x.Id))
-            .Select(x => new ClienteLeadResponse(x.Id, x.Nome, x.Telefone, x.QuantidadeVidas, x.Operadora, x.Email, x.DataEnvio, x.DataRetorno, x.DataAprovacao, x.WorkflowEtapa.ToString()))
+            .Select(x => new ClienteLeadResponse(
+                x.Id,
+                x.Nome,
+                x.Telefone,
+                x.QuantidadeVidas,
+                x.Operadora,
+                x.Email,
+                x.DataEnvio,
+                x.DataRetorno,
+                x.DataAprovacao,
+                x.TokenConsultaAnalise,
+                x.RetornoAnalise,
+                x.DataHoraEnvioAnalise,
+                x.WorkflowEtapa.ToString()))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
 
         var pessoasFisicas = await db.PessoasFisicas.AsNoTracking()
@@ -114,10 +127,40 @@ public sealed class ClientesController(CorretorDbContext db) : ControllerBase
 
         var dependentes = await db.Dependentes.AsNoTracking()
             .Where(x => pessoaFisicaIds.Contains(x.PessoaFisicaId))
-            .Select(x => new ClienteDependenteResponse(x.Id, x.PessoaFisicaId, x.DataNascimento, x.NomeMae, x.NomePai))
             .ToListAsync(cancellationToken);
 
-        var dependentesPorPessoaFisica = dependentes
+        var pessoaFisicaDependenteIds = dependentes
+            .Where(x => x.PessoaFisicaDependenteId.HasValue)
+            .Select(x => x.PessoaFisicaDependenteId!.Value)
+            .Distinct()
+            .ToList();
+
+        var pessoasFisicasDependentes = await db.PessoasFisicas.AsNoTracking()
+            .Where(x => pessoaFisicaDependenteIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+        var dependentesResponses = dependentes
+            .Select(dependente =>
+            {
+                pessoasFisicasDependentes.TryGetValue(dependente.PessoaFisicaDependenteId ?? Guid.Empty, out var pessoaDependente);
+
+                return new ClienteDependenteResponse(
+                    dependente.Id,
+                    dependente.PessoaFisicaId,
+                    dependente.PessoaFisicaDependenteId,
+                    pessoaDependente?.Nome,
+                    pessoaDependente?.Cpf ?? dependente.Cpf,
+                    dependente.TipoParentesco,
+                    pessoaDependente?.Email,
+                    pessoaDependente?.Telefone,
+                    pessoaDependente?.FaixaEtaria,
+                    pessoaDependente?.DataNascimento ?? dependente.DataNascimento,
+                    pessoaDependente?.NomeMae ?? dependente.NomeMae,
+                    pessoaDependente?.NomePai ?? dependente.NomePai);
+            })
+            .ToList();
+
+        var dependentesPorPessoaFisica = dependentesResponses
             .GroupBy(x => x.PessoaFisicaId)
             .ToDictionary(x => x.Key, x => x.ToList());
 
@@ -169,8 +212,8 @@ public sealed record ClienteDetalhadoResponse(
     ClientePessoaJuridicaResponse? PessoaJuridica,
     List<ClienteEnderecoResponse> Enderecos);
 
-public sealed record ClienteLeadResponse(Guid Id, string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao, string WorkflowEtapa);
-public sealed record ClientePessoaFisicaResponse(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai, List<ClienteDependenteResponse> Dependentes);
+public sealed record ClienteLeadResponse(Guid Id, string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao, string? TokenConsultaAnalise, string? RetornoAnalise, string? DataHoraEnvioAnalise, string WorkflowEtapa);
+public sealed record ClientePessoaFisicaResponse(Guid Id, string Nome, string? Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai, List<ClienteDependenteResponse> Dependentes);
 public sealed record ClientePessoaJuridicaResponse(Guid Id, string NomeEmpresa, string Cnpj, string IE, string? Email, string? Telefone, DateTime DataAbertura);
 public sealed record ClienteEnderecoResponse(Guid Id, Guid ClienteId, string Logradouro, string Estado, string Cidade, string Cep);
-public sealed record ClienteDependenteResponse(Guid Id, Guid PessoaFisicaId, string? DataNascimento, string? NomeMae, string? NomePai);
+public sealed record ClienteDependenteResponse(Guid Id, Guid PessoaFisicaId, Guid? PessoaFisicaDependenteId, string? Nome, string? Cpf, string? TipoParentesco, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);

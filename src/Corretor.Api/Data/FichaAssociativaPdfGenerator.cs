@@ -96,8 +96,8 @@ public sealed record FichaAssociativaDados(
     List<FichaDependenteDados> Dependentes);
 
 public sealed record FichaLeadDados(string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao);
-public sealed record FichaPessoaFisicaDados(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);
+public sealed record FichaPessoaFisicaDados(Guid Id, string Nome, string? Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);
 public sealed record FichaPessoaJuridicaDados(Guid Id, string NomeEmpresa, string Cnpj, string IE, string? Email, string? Telefone, DateTime DataAbertura);
 public sealed record FichaEnderecoDados(string Logradouro, string Estado, string Cidade, string Cep);
 public sealed record FichaFaixaEtariaDados(string Faixa, int Quantidade);
-public sealed record FichaDependenteDados(Guid Id, Guid PessoaFisicaId, string? DataNascimento, string? NomeMae, string? NomePai);
+public sealed record FichaDependenteDados(Guid Id, Guid PessoaFisicaId, Guid? PessoaFisicaDependenteId, string? Nome, string? Cpf, string? DataNascimento, string? NomeMae, string? NomePai);

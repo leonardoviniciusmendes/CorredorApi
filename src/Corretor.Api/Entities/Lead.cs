@@ -11,5 +11,8 @@ public sealed class Lead
     public string? DataEnvio { get; set; }
     public string? DataRetorno { get; set; }
     public string? DataAprovacao { get; set; }
+    public string? TokenConsultaAnalise { get; set; }
+    public string? RetornoAnalise { get; set; }
+    public string? DataHoraEnvioAnalise { get; set; }
     public LeadWorkflowEtapa WorkflowEtapa { get; set; }
 }

@@ -91,4 +91,4 @@ public sealed class PessoasFisicasController(CorretorDbContext db) : ControllerB
 }
 
 public sealed record PessoaFisicaRequest([Required] string Nome, [Required] string Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);
-public sealed record PessoaFisicaResponse(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);
+public sealed record PessoaFisicaResponse(Guid Id, string Nome, string? Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);

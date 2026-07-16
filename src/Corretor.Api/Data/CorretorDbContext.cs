@@ -7,7 +7,6 @@ public sealed class CorretorDbContext(DbContextOptions<CorretorDbContext> option
 {
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<FaixaEtaria> FaixasEtarias => Set<FaixaEtaria>();
-    public DbSet<Simulacao> Simulacoes => Set<Simulacao>();
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<Contrato> Contratos => Set<Contrato>();
     public DbSet<PosContrato> PosContratos => Set<PosContrato>();
@@ -35,15 +34,6 @@ public sealed class CorretorDbContext(DbContextOptions<CorretorDbContext> option
             entity.ToTable("FaixaEtaria");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Faixa).IsRequired();
-            entity.HasIndex(x => x.LeadId);
-            entity.HasOne<Lead>().WithMany().HasForeignKey(x => x.LeadId).OnDelete(DeleteBehavior.Restrict);
-        });
-
-        modelBuilder.Entity<Simulacao>(entity =>
-        {
-            entity.ToTable("Simulacao");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.DataEnvio).IsRequired();
             entity.HasIndex(x => x.LeadId);
             entity.HasOne<Lead>().WithMany().HasForeignKey(x => x.LeadId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -117,21 +107,21 @@ public sealed class CorretorDbContext(DbContextOptions<CorretorDbContext> option
                 new Script
                 {
                     Id = new Guid("11111111-1111-1111-1111-111111111114"),
-                    Etapa = ScriptEtapa.EnvioSimulacao,
+                    Etapa = ScriptEtapa.EnvioAnalise,
                     Tipo = "Envio",
-                    Mensagem = "Segue a simulacao com as opcoes de plano. Veja valores, rede, coparticipacao e cobertura antes de escolher a melhor alternativa."
+                    Mensagem = "Segue a analise com as opcoes de plano. Veja valores, rede, coparticipacao e cobertura antes de escolher a melhor alternativa."
                 },
                 new Script
                 {
                     Id = new Guid("11111111-1111-1111-1111-111111111115"),
                     Etapa = ScriptEtapa.RetornoContato,
                     Tipo = "FollowUp",
-                    Mensagem = "Conseguiu avaliar a simulacao enviada? Posso te ajudar a comparar as opcoes e tirar duvidas sobre rede, carencia e valores."
+                    Mensagem = "Conseguiu avaliar a analise enviada? Posso te ajudar a comparar as opcoes e tirar duvidas sobre rede, carencia e valores."
                 },
                 new Script
                 {
                     Id = new Guid("11111111-1111-1111-1111-111111111116"),
-                    Etapa = ScriptEtapa.AprovacaoSimulacao,
+                    Etapa = ScriptEtapa.AprovacaoAnalise,
                     Tipo = "Aprovacao",
                     Mensagem = "Perfeito, vamos seguir com a opcao escolhida. Vou iniciar a etapa de documentos para formalizar a proposta."
                 },
@@ -178,7 +168,6 @@ public sealed class CorretorDbContext(DbContextOptions<CorretorDbContext> option
             entity.ToTable("PessoaFisica");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Nome).IsRequired();
-            entity.Property(x => x.Cpf).IsRequired();
         });
 
         modelBuilder.Entity<Endereco>(entity =>
@@ -198,7 +187,9 @@ public sealed class CorretorDbContext(DbContextOptions<CorretorDbContext> option
             entity.ToTable("Dependente");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.PessoaFisicaId);
+            entity.HasIndex(x => x.PessoaFisicaDependenteId);
             entity.HasOne<PessoaFisica>().WithMany().HasForeignKey(x => x.PessoaFisicaId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<PessoaFisica>().WithMany().HasForeignKey(x => x.PessoaFisicaDependenteId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<PessoaJuridica>(entity =>

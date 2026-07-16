@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Corretor.Api.Data;
 using Corretor.Api.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +15,20 @@ public sealed class LeadsController(CorretorDbContext db, IWebHostEnvironment en
     public async Task<ActionResult<IEnumerable<LeadResponse>>> Get(CancellationToken cancellationToken)
     {
         var leads = await db.Leads.AsNoTracking()
-            .Select(x => new LeadResponse(x.Id, x.Nome, x.Telefone, x.QuantidadeVidas, x.Operadora, x.Email, x.DataEnvio, x.DataRetorno, x.DataAprovacao, x.WorkflowEtapa))
+            .Select(x => new LeadResponse(
+                x.Id,
+                x.Nome,
+                x.Telefone,
+                x.QuantidadeVidas,
+                x.Operadora,
+                x.Email,
+                x.DataEnvio,
+                x.DataRetorno,
+                x.DataAprovacao,
+                x.TokenConsultaAnalise,
+                x.RetornoAnalise,
+                x.DataHoraEnvioAnalise,
+                x.WorkflowEtapa))
             .ToListAsync(cancellationToken);
 
         return Ok(leads);
@@ -25,7 +39,20 @@ public sealed class LeadsController(CorretorDbContext db, IWebHostEnvironment en
     {
         var lead = await db.Leads.AsNoTracking()
             .Where(x => x.Id == id)
-            .Select(x => new LeadResponse(x.Id, x.Nome, x.Telefone, x.QuantidadeVidas, x.Operadora, x.Email, x.DataEnvio, x.DataRetorno, x.DataAprovacao, x.WorkflowEtapa))
+            .Select(x => new LeadResponse(
+                x.Id,
+                x.Nome,
+                x.Telefone,
+                x.QuantidadeVidas,
+                x.Operadora,
+                x.Email,
+                x.DataEnvio,
+                x.DataRetorno,
+                x.DataAprovacao,
+                x.TokenConsultaAnalise,
+                x.RetornoAnalise,
+                x.DataHoraEnvioAnalise,
+                x.WorkflowEtapa))
             .FirstOrDefaultAsync(cancellationToken);
 
         return lead is null ? NotFound() : Ok(lead);
@@ -61,10 +88,35 @@ public sealed class LeadsController(CorretorDbContext db, IWebHostEnvironment en
                     .Select(x => new FichaPessoaFisicaDados(x.Id, x.Nome, x.Cpf, x.Email, x.Telefone, x.FaixaEtaria, x.DataNascimento, x.NomeMae, x.NomePai))
                     .FirstOrDefaultAsync(cancellationToken);
 
-                dependentes = await db.Dependentes.AsNoTracking()
+                var dependentesEntidades = await db.Dependentes.AsNoTracking()
                     .Where(x => x.PessoaFisicaId == cliente.PessoaFisicaId.Value)
-                    .Select(x => new FichaDependenteDados(x.Id, x.PessoaFisicaId, x.DataNascimento, x.NomeMae, x.NomePai))
                     .ToListAsync(cancellationToken);
+
+                var pessoaDependenteIds = dependentesEntidades
+                    .Where(x => x.PessoaFisicaDependenteId.HasValue)
+                    .Select(x => x.PessoaFisicaDependenteId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var pessoasDependentes = await db.PessoasFisicas.AsNoTracking()
+                    .Where(x => pessoaDependenteIds.Contains(x.Id))
+                    .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+                dependentes = dependentesEntidades
+                    .Select(dependente =>
+                    {
+                        pessoasDependentes.TryGetValue(dependente.PessoaFisicaDependenteId ?? Guid.Empty, out var pessoaDependente);
+                        return new FichaDependenteDados(
+                            dependente.Id,
+                            dependente.PessoaFisicaId,
+                            dependente.PessoaFisicaDependenteId,
+                            pessoaDependente?.Nome,
+                            pessoaDependente?.Cpf ?? dependente.Cpf,
+                            pessoaDependente?.DataNascimento ?? dependente.DataNascimento,
+                            pessoaDependente?.NomeMae ?? dependente.NomeMae,
+                            pessoaDependente?.NomePai ?? dependente.NomePai);
+                    })
+                    .ToList();
             }
 
             if (cliente.PessoaJuridicaId.HasValue)
@@ -126,8 +178,40 @@ public sealed class LeadsController(CorretorDbContext db, IWebHostEnvironment en
         });
         await db.SaveChangesAsync(cancellationToken);
 
-        var response = new LeadResponse(lead.Id, lead.Nome, lead.Telefone, lead.QuantidadeVidas, lead.Operadora, lead.Email, lead.DataEnvio, lead.DataRetorno, lead.DataAprovacao, lead.WorkflowEtapa);
+        var response = ToResponse(lead);
         return CreatedAtAction(nameof(GetById), new { id = lead.Id }, response);
+    }
+
+    [HttpPost("{id:guid}/analise")]
+    public async Task<ActionResult<LeadAnaliseResponse>> RegistrarAnalise(Guid id, LeadAnaliseRequest request, CancellationToken cancellationToken)
+    {
+        var lead = await db.Leads.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (lead is null)
+        {
+            return NotFound();
+        }
+
+        lead.TokenConsultaAnalise = request.TokenConsulta;
+        lead.RetornoAnalise = GetRetornoAnalise(request.RetornoAnalise);
+        lead.DataHoraEnvioAnalise = DateTimeOffset.UtcNow.ToString("O");
+        lead.WorkflowEtapa = LeadWorkflowEtapa.Analise;
+
+        db.Historicos.Add(new Historico
+        {
+            Id = Guid.NewGuid(),
+            LeadId = lead.Id,
+            Tipo = HistoricoTipo.RetornoLead,
+            Data = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd")
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Ok(new LeadAnaliseResponse(
+            lead.Id,
+            lead.TokenConsultaAnalise,
+            lead.RetornoAnalise,
+            lead.DataHoraEnvioAnalise,
+            lead.WorkflowEtapa));
     }
 
     [HttpPut("{id:guid}")]
@@ -165,7 +249,37 @@ public sealed class LeadsController(CorretorDbContext db, IWebHostEnvironment en
         await db.SaveChangesAsync(cancellationToken);
         return NoContent();
     }
+
+    private static LeadResponse ToResponse(Lead lead)
+    {
+        return new LeadResponse(
+            lead.Id,
+            lead.Nome,
+            lead.Telefone,
+            lead.QuantidadeVidas,
+            lead.Operadora,
+            lead.Email,
+            lead.DataEnvio,
+            lead.DataRetorno,
+            lead.DataAprovacao,
+            lead.TokenConsultaAnalise,
+            lead.RetornoAnalise,
+            lead.DataHoraEnvioAnalise,
+            lead.WorkflowEtapa);
+    }
+
+    private static string? GetRetornoAnalise(JsonElement retornoAnalise)
+    {
+        return retornoAnalise.ValueKind switch
+        {
+            JsonValueKind.Undefined or JsonValueKind.Null => null,
+            JsonValueKind.String => retornoAnalise.GetString(),
+            _ => retornoAnalise.GetRawText()
+        };
+    }
 }
 
 public sealed record LeadRequest([Required] string Nome, [Required] string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao);
-public sealed record LeadResponse(Guid Id, string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao, LeadWorkflowEtapa WorkflowEtapa);
+public sealed record LeadResponse(Guid Id, string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao, string? TokenConsultaAnalise, string? RetornoAnalise, string? DataHoraEnvioAnalise, LeadWorkflowEtapa WorkflowEtapa);
+public sealed record LeadAnaliseRequest([Required] string TokenConsulta, JsonElement RetornoAnalise);
+public sealed record LeadAnaliseResponse(Guid LeadId, string? TokenConsulta, string? RetornoAnalise, string? DataHoraEnvioAnalise, LeadWorkflowEtapa WorkflowEtapa);

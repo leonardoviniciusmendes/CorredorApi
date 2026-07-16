@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using Corretor.Api.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +18,7 @@ builder.Services.AddHttpClient<ExternalDocumentosClient>((serviceProvider, clien
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173", "http://192.168.1.7:5173")
             .AllowAnyHeader()
             .AllowAnyMethod());
 });
@@ -49,3 +49,4 @@ app.Run();
 public partial class Program
 {
 }
+

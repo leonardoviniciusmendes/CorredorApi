@@ -49,42 +49,31 @@ public sealed class ApiTests : IClassFixture<CorretorApiFactory>
     }
 
     [Fact]
-    public async Task PostSimulacao_CreatesSimulacao()
+    public async Task PostAnalise_StoresAnaliseOnLead()
     {
         var lead = await CreateLeadResponse();
 
-        var response = await _client.PostAsJsonAsync($"/api/leads/{lead.Id}/simulacoes", new
+        var response = await _client.PostAsJsonAsync($"/api/leads/{lead.Id}/analise", new
         {
-            link = "https://example.com",
-            aprovada = false
+            tokenConsulta = "consulta-123",
+            retornoAnalise = new { status = "ok" }
         });
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var simulacao = await response.Content.ReadFromJsonAsync<SimulacaoTestResponse>();
-        Assert.NotNull(simulacao);
-        Assert.False(string.IsNullOrWhiteSpace(simulacao.DataEnvio));
+        var analise = await response.Content.ReadFromJsonAsync<LeadAnaliseTestResponse>();
+        Assert.NotNull(analise);
+        Assert.Equal(lead.Id, analise.LeadId);
+        Assert.Equal("consulta-123", analise.TokenConsulta);
+        Assert.Equal("{\"status\":\"ok\"}", analise.RetornoAnalise);
+        Assert.False(string.IsNullOrWhiteSpace(analise.DataHoraEnvioAnalise));
 
         var leadAtualizado = await _client.GetFromJsonAsync<LeadTestResponse>($"/api/leads/{lead.Id}");
         Assert.NotNull(leadAtualizado);
-        Assert.Equal("Simulacao", leadAtualizado.WorkflowEtapa);
-    }
-
-    [Fact]
-    public async Task PostSimulacaoAprovada_UnapprovesPreviousSimulation()
-    {
-        var lead = await CreateLeadResponse();
-
-        var primeira = await CreateSimulacaoResponse(lead.Id, true);
-        var segunda = await CreateSimulacaoResponse(lead.Id, true);
-
-        var primeiraAtualizada = await _client.GetFromJsonAsync<SimulacaoTestResponse>($"/api/simulacoes/{primeira.Id}");
-        var segundaAtualizada = await _client.GetFromJsonAsync<SimulacaoTestResponse>($"/api/simulacoes/{segunda.Id}");
-
-        Assert.NotNull(primeiraAtualizada);
-        Assert.NotNull(segundaAtualizada);
-        Assert.False(primeiraAtualizada.Aprovada);
-        Assert.True(segundaAtualizada.Aprovada);
+        Assert.Equal("Analise", leadAtualizado.WorkflowEtapa);
+        Assert.Equal("consulta-123", leadAtualizado.TokenConsultaAnalise);
+        Assert.Equal("{\"status\":\"ok\"}", leadAtualizado.RetornoAnalise);
+        Assert.False(string.IsNullOrWhiteSpace(leadAtualizado.DataHoraEnvioAnalise));
     }
 
     [Fact]
@@ -140,6 +129,105 @@ public sealed class ApiTests : IClassFixture<CorretorApiFactory>
 
         var deleteResponse = await _client.DeleteAsync($"/api/documentos/{documento.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task PostDocumentoDependente_WhenCpfDependenteMissing_CreatesDependente()
+    {
+        var lead = await CreateLeadResponse();
+        var pessoaFisica = await CreatePessoaFisicaResponse();
+        await CreateClienteResponse(lead.Id, pessoaFisica.Id);
+
+        var response = await _client.PostAsJsonAsync($"/api/leads/{lead.Id}/documentos", new
+        {
+            documentoExternoId = Guid.NewGuid(),
+            tipo = "RG",
+            papel = "Dependente",
+            tipoParentesco = "Filho",
+            cpf = "12345678901",
+            cpfDependente = (string?)null,
+            cnpj = (string?)null,
+            extracaoProcessada = true,
+            nome = "Joao Silva",
+            dataNascimento = "2018-05-10",
+            nomeMae = "Maria Silva",
+            nomePai = "Jose Silva"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var dependentes = await _client.GetFromJsonAsync<List<DependenteTestResponse>>($"/api/pessoas-fisicas/{pessoaFisica.Id}/dependentes");
+        Assert.NotNull(dependentes);
+
+        var dependente = Assert.Single(dependentes);
+        Assert.NotNull(dependente.PessoaFisicaDependenteId);
+        Assert.Equal("Joao Silva", dependente.Nome);
+        Assert.Null(dependente.Cpf);
+        Assert.Equal("Filho", dependente.TipoParentesco);
+        Assert.Equal("2018-05-10", dependente.DataNascimento);
+        Assert.Equal("Maria Silva", dependente.NomeMae);
+        Assert.Equal("Jose Silva", dependente.NomePai);
+
+        var pessoaDependente = await _client.GetFromJsonAsync<PessoaFisicaTestResponse>($"/api/pessoas-fisicas/{dependente.PessoaFisicaDependenteId}");
+        Assert.NotNull(pessoaDependente);
+        Assert.Equal("Joao Silva", pessoaDependente.Nome);
+        Assert.Null(pessoaDependente.Cpf);
+        Assert.Equal("2018-05-10", pessoaDependente.DataNascimento);
+        Assert.Equal("Maria Silva", pessoaDependente.NomeMae);
+    }
+
+    [Fact]
+    public async Task PostDocumentoDependente_CreatesDocumento()
+    {
+        var lead = await CreateLeadResponse();
+        var pessoaFisica = await CreatePessoaFisicaResponse();
+        await CreateClienteResponse(lead.Id, pessoaFisica.Id);
+        var documentoExternoId = Guid.NewGuid();
+
+        var response = await _client.PostAsJsonAsync($"/api/leads/{lead.Id}/documentos", new
+        {
+            documentoExternoId,
+            tipo = "RG",
+            papel = "Dependente",
+            tipoParentesco = "Filho",
+            cpf = "12345678901",
+            cpfDependente = "98765432100",
+            cnpj = (string?)null,
+            extracaoProcessada = true,
+            nome = "Joao Silva",
+            dataNascimento = "2018-05-10",
+            nomeMae = "Maria Silva",
+            nomePai = "Jose Silva"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var documento = await response.Content.ReadFromJsonAsync<DocumentoTestResponse>();
+        Assert.NotNull(documento);
+        Assert.Equal(documentoExternoId, documento.DocumentoExternoId);
+        Assert.Equal("Dependente", documento.Papel);
+        Assert.Equal("Filho", documento.TipoParentesco);
+        Assert.Equal("12345678901", documento.Cpf);
+        Assert.Equal("98765432100", documento.CpfDependente);
+
+        var dependentes = await _client.GetFromJsonAsync<List<DependenteTestResponse>>($"/api/pessoas-fisicas/{pessoaFisica.Id}/dependentes");
+        Assert.NotNull(dependentes);
+
+        var dependente = Assert.Single(dependentes);
+        Assert.NotNull(dependente.PessoaFisicaDependenteId);
+        Assert.Equal("Joao Silva", dependente.Nome);
+        Assert.Equal("98765432100", dependente.Cpf);
+        Assert.Equal("Filho", dependente.TipoParentesco);
+        Assert.Equal("2018-05-10", dependente.DataNascimento);
+        Assert.Equal("Maria Silva", dependente.NomeMae);
+        Assert.Equal("Jose Silva", dependente.NomePai);
+
+        var pessoaDependente = await _client.GetFromJsonAsync<PessoaFisicaTestResponse>($"/api/pessoas-fisicas/{dependente.PessoaFisicaDependenteId}");
+        Assert.NotNull(pessoaDependente);
+        Assert.Equal("Joao Silva", pessoaDependente.Nome);
+        Assert.Equal("98765432100", pessoaDependente.Cpf);
+        Assert.Equal("2018-05-10", pessoaDependente.DataNascimento);
+        Assert.Equal("Maria Silva", pessoaDependente.NomeMae);
     }
 
     [Fact]
@@ -219,24 +307,23 @@ public sealed class ApiTests : IClassFixture<CorretorApiFactory>
             ?? throw new InvalidOperationException("Pessoa fisica response was empty.");
     }
 
-    private async Task<SimulacaoTestResponse> CreateSimulacaoResponse(Guid leadId, bool aprovada)
+    private async Task CreateClienteResponse(Guid leadId, Guid pessoaFisicaId)
     {
-        var response = await _client.PostAsJsonAsync($"/api/leads/{leadId}/simulacoes", new
+        var response = await _client.PostAsJsonAsync("/api/clientes", new
         {
-            link = "https://example.com",
-            aprovada
+            leadId,
+            pessoaFisicaId
         });
 
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<SimulacaoTestResponse>()
-            ?? throw new InvalidOperationException("Simulacao response was empty.");
     }
 
-    private sealed record LeadTestResponse(Guid Id, string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao, string WorkflowEtapa);
-    private sealed record PessoaFisicaTestResponse(Guid Id, string Nome, string Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);
-    private sealed record SimulacaoTestResponse(Guid Id, Guid LeadId, string? Link, bool Aprovada, string DataEnvio);
+    private sealed record LeadTestResponse(Guid Id, string Nome, string Telefone, int QuantidadeVidas, string? Operadora, string? Email, string? DataEnvio, string? DataRetorno, string? DataAprovacao, string? TokenConsultaAnalise, string? RetornoAnalise, string? DataHoraEnvioAnalise, string WorkflowEtapa);
+    private sealed record PessoaFisicaTestResponse(Guid Id, string Nome, string? Cpf, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);
+    private sealed record LeadAnaliseTestResponse(Guid LeadId, string? TokenConsulta, string? RetornoAnalise, string? DataHoraEnvioAnalise, string WorkflowEtapa);
     private sealed record DocumentoTestResponse(Guid Id, Guid LeadId, Guid DocumentoExternoId, string Tipo, string Papel, string? TipoParentesco, string? Cpf, string? CpfDependente, string? Cnpj, bool ExtracaoProcessada, bool Aprovado, string DataUpload, string? DataAprovacao, string? MotivoReprovacao);
     private sealed record DocumentoAprovacaoTestResponse(Guid Id, Guid DocumentoExternoId, bool Aprovado, string? DataAprovacao);
+    private sealed record DependenteTestResponse(Guid Id, Guid PessoaFisicaId, Guid? PessoaFisicaDependenteId, string? Nome, string? Cpf, string? TipoParentesco, string? Email, string? Telefone, string? FaixaEtaria, string? DataNascimento, string? NomeMae, string? NomePai);
     private sealed record HistoricoTestResponse(Guid Id, Guid LeadId, string Tipo, string Data);
     private sealed record ScriptTestResponse(Guid Id, string Etapa, string Tipo, string Mensagem);
 }

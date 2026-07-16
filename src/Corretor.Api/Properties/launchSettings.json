@@ -1,12 +1,12 @@
-{
-  "profiles": {
-    "Corretor.Api": {
-      "commandName": "Project",
-      "launchBrowser": true,
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "applicationUrl": "https://localhost:58507;http://localhost:58508"
-    }
-  }
+﻿{
+    "profiles":  {
+                     "Corretor.Api":  {
+                                          "commandName":  "Project",
+                                          "launchBrowser":  true,
+                                          "environmentVariables":  {
+                                                                       "ASPNETCORE_ENVIRONMENT":  "Development"
+                                                                   },
+                                          "applicationUrl":  "https://localhost:58507;http://0.0.0.0:58508"
+                                      }
+                 }
 }
